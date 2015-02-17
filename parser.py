@@ -1,6 +1,8 @@
 import requests
 import pyelasticsearch as pyes
 
+import parser_setting
+
 class Facebook():
     def __init__(self, appId = '', appSecret = ''):
         self.appId = appId
@@ -33,27 +35,24 @@ def parseFacebookGroupsPosts(posts):
         es.index('ntustask','ntusttalktalk', post, id = post['id'])        
 
         # es.delete_all('ntustask','ntusttalktalk')
+for target in parser_setting.targets:
+    fields = ['from','message','comments','created_time']
+    fb = Facebook()
+    fb.setAccessToken(parser_setting.token)
 
-token = ''
-fields = ['from','message','comments','created_time']
-fb = Facebook()
-fb.setAccessToken(token)
+    posts = fb.api(target + '/feed', fields, 200)
 
-posts = fb.api('167003826794033/feed', fields, 200)
+    es = pyes.ElasticSearch('http://localhost:9200/')
+    print(es)
+    parseFacebookGroupsPosts(posts['data'])
 
-es = pyes.ElasticSearch('http://localhost:9200/')
+    if parser_setting.setup:
+        while True:
+            try:
+                parseFacebookGroupsPosts(posts['data'])
+                nextPageUrl = posts['paging']['next']
+                posts = requests.get(nextPageUrl).json()
+            except KeyError:
+                break
 
-parseFacebookGroupsPosts(posts['data'])
-
-setup = False
-
-if setup:
-    while True:
-        try:
-            parseFacebookGroupsPosts(posts['data'])
-            nextPageUrl = posts['paging']['next']
-            posts = requests.get(nextPageUrl).json()
-        except KeyError:
-            break
-
-print('Done')
+    print('Done')
